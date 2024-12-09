@@ -17,14 +17,20 @@ import type {
   ConfigTypeSet,
   Exposes,
   Remotes,
-  RemotesConfig,
   Shared,
+  ParsedConfigTypeSet,
+  ExposesParsedConfig,
+  RemotesParsedConfig,
+  SharedParsedConfig,
   VitePluginFederationOptions
 } from '../../types'
 import { readFileSync } from 'fs'
 import { createHash } from 'crypto'
 import path, { parse, posix } from 'path'
 import type { PluginContext } from 'rollup'
+
+export * from './effectWrap'
+export * from './resolve'
 
 export function findDependencies(
   this: PluginContext,
@@ -54,8 +60,8 @@ export function findDependencies(
 
 export function parseSharedOptions(
   options: VitePluginFederationOptions
-): (string | ConfigTypeSet)[] {
-  return parseOptions(
+): [string, SharedParsedConfig][] {
+  return parseOptions<SharedParsedConfig>(
     options.shared || {},
     (value, key) => ({
       import: true,
@@ -63,7 +69,8 @@ export function parseSharedOptions(
       packagePath: key,
       // Whether the path is set manually
       manuallyPackagePathSetting: false,
-      generate: true
+      generate: true,
+      effectWrap: false
     }),
     (value, key) => {
       value.import = value.import ?? true
@@ -71,6 +78,7 @@ export function parseSharedOptions(
       value.packagePath = value.packagePath || key
       value.manuallyPackagePathSetting = value.packagePath !== key
       value.generate = value.generate ?? true
+      value.effectWrap = value.effectWrap ?? false
       return value
     }
   )
@@ -78,8 +86,8 @@ export function parseSharedOptions(
 
 export function parseExposeOptions(
   options: VitePluginFederationOptions
-): (string | ConfigTypeSet)[] {
-  return parseOptions(
+): [string, ExposesParsedConfig][] {
+  return parseOptions<ExposesParsedConfig>(
     options.exposes,
     (item) => {
       return {
@@ -103,8 +111,8 @@ export function createContentHash(path: string): string {
 
 export function parseRemoteOptions(
   options: VitePluginFederationOptions
-): (string | ConfigTypeSet)[] {
-  return parseOptions(
+): [string, RemotesParsedConfig][] {
+  return parseOptions<RemotesParsedConfig>(
     options.remotes ? options.remotes : {},
     (item) => ({
       external: Array.isArray(item) ? item : [item],
@@ -123,17 +131,15 @@ export function parseRemoteOptions(
   )
 }
 
-export function parseOptions(
+export function parseOptions<T extends ParsedConfigTypeSet>(
   options: Exposes | Remotes | Shared | undefined,
-  normalizeSimple: (value: any, key: any) => ConfigTypeSet,
-  normalizeOptions: (value: any, key: any) => ConfigTypeSet
-): (string | ConfigTypeSet)[] {
+  normalizeSimple: (value: any, key: any) => T,
+  normalizeOptions: (value: any, key: any) => T
+): [string, T][] {
   if (!options) {
     return []
   }
-  const list: {
-    [index: number]: string | ConfigTypeSet
-  }[] = []
+  const list: [string, T][] = []
   const array = (items: (string | ConfigTypeSet)[]) => {
     for (const item of items) {
       if (typeof item === 'string') {
@@ -212,7 +218,7 @@ export function isSameFilepath(src: string, dest: string): boolean {
   return src === dest
 }
 
-export type Remote = { id: string; regexp: RegExp; config: RemotesConfig }
+export type Remote = { id: string; regexp: RegExp; config: RemotesParsedConfig }
 
 export function createRemotesMap(remotes: Remote[]): string {
   const createUrl = (remote: Remote) => {

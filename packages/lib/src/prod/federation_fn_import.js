@@ -48,7 +48,21 @@ async function getSharedFromLocal(name) {
     )
   }
 }
+
+// eslint-disable-next-line no-undef
+const sharedEffectWrapDeps = __rf_var__SharedEffectWrapDeps
+// eslint-disable-next-line no-undef
+const sharedEffectWrapFnNamePrefix = __rf_var__sharedEffectWrapFnNamePrefix
+
+export const formatDepName = (name) => {
+  return name.replace('@', '__').replace('/', '___').replace('-', '_')
+}
+
 function flattenModule(module, name) {
+  const sharedEffectWrapFnName = `${sharedEffectWrapFnNamePrefix}__${formatDepName(
+    name
+  )}`
+
   // use a shared module which export default a function will getting error 'TypeError: xxx is not a function'
   if (typeof module.default === 'function') {
     Object.keys(module).forEach((key) => {
@@ -57,9 +71,21 @@ function flattenModule(module, name) {
       }
     })
     moduleCache[name] = module.default
+    if (
+      sharedEffectWrapDeps.includes(name) &&
+      typeof module[sharedEffectWrapFnName] === 'function'
+    ) {
+      Object.assign(module.default, module[sharedEffectWrapFnName]())
+    }
     return module.default
   }
   if (module.default) module = Object.assign({}, module.default, module)
+  if (
+    sharedEffectWrapDeps.includes(name) &&
+    typeof module[sharedEffectWrapFnName] === 'function'
+  ) {
+    module = Object.assign({}, module, module[sharedEffectWrapFnName]())
+  }
   moduleCache[name] = module
   return module
 }

@@ -91,6 +91,10 @@ type Remotes = (string | RemotesObject)[] | RemotesObject
 type Shared = (string | SharedObject)[] | SharedObject
 
 type ConfigTypeSet = ExposesConfig | RemotesConfig | SharedConfig
+type ParsedConfigTypeSet =
+  | ExposesParsedConfig
+  | RemotesParsedConfig
+  | SharedParsedConfig
 
 declare interface SharedRuntimeInfo {
   id: string
@@ -312,4 +316,45 @@ declare interface SharedConfig {
    * determine whether to include the shared in the chunk, true is included, false will not generate a shared chunk, only the remote side of the parameter is valid, the host side will definitely generate a shared chunk
    */
   generate?: boolean
+
+  /**
+   * if true, the shared module will be wrapped with a function, and the function will be called when the shared module is imported
+   * , childDeps: the child dependencies of the shared module, handled by same way,
+   * , compatOldShared: add export default object which contains all properties
+   */
+  effectWrap?: boolean | { childDeps: string[]; compatOldShared: boolean }
+}
+
+export interface SharedParsedConfig {
+  import: boolean
+  shareScope: string
+  packagePath: string
+  manuallyPackagePathSetting: boolean
+  generate: boolean
+  effectWrap: boolean | { childDeps?: string[]; compatOldShared?: boolean }
+  // dev extra fields
+  version?: string
+  // prod extra fields
+  emitFile?: string
+  requiredVersion?: boolean
+  id?: string
+  removed?: boolean
+  dependencies?: Set<string>
+}
+
+export interface ExposesParsedConfig {
+  import: string
+  name?: string
+  dontAppendStylesToHead: boolean
+  // prod extra fields
+  emitFile?: string
+  id?: string
+}
+
+export interface RemotesParsedConfig {
+  external: string[]
+  externalType: 'url' | 'promise'
+  shareScope: string
+  format: 'esm' | 'systemjs' | 'var'
+  from: 'vite' | 'webpack'
 }

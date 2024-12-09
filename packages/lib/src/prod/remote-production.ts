@@ -22,13 +22,16 @@ import {
   builderInfo,
   EXPOSES_KEY_MAP,
   parsedOptions,
-  prodRemotes
+  prodRemotes,
+  DEP_EFFECT_WRAP_FN_PREFIX,
+  prodEffectWrapSharedDeps
 } from '../public'
 import {
   createRemotesMap,
   getModuleMarker,
   parseRemoteOptions,
-  REMOTE_FROM_PARAMETER
+  REMOTE_FROM_PARAMETER,
+  handleEffectWrapCode
 } from '../utils'
 
 const sharedFileName2Prop: Map<string, ConfigTypeSet> = new Map<
@@ -184,6 +187,10 @@ export function prodRemotePlugin(
           }
         }
 
+        const effectWrapArr = parsedOptions.prodShared
+          .filter((shareInfo) => shareInfo[1].effectWrap)
+          .map((item) => item[0])
+
         if (id === '\0virtual:__federation_fn_import') {
           const moduleMapCode = parsedOptions.prodShared
             .filter((shareInfo) => shareInfo[1].generate)
@@ -200,10 +207,35 @@ export function prodRemotePlugin(
                 }}`
             )
             .join(',')
-          return code.replace(
-            getModuleMarker('moduleMap', 'var'),
-            `{${moduleMapCode}}`
+          return code
+            .replace(getModuleMarker('moduleMap', 'var'), `{${moduleMapCode}}`)
+            .replace(
+              getModuleMarker('SharedEffectWrapDeps', 'var'),
+              `[${effectWrapArr.map((item) => `"${item}"`).join(',')}]`
+            )
+            .replace(
+              getModuleMarker('sharedEffectWrapFnNamePrefix', 'var'),
+              `"${DEP_EFFECT_WRAP_FN_PREFIX}"`
+            )
+        }
+        try {
+          const effectWrapDep = prodEffectWrapSharedDeps.find(
+            (item) => item.id && id.includes(item.id)
           )
+          if (effectWrapDep) {
+            console.log('effectWrapDep id: ', id, effectWrapDep.name)
+            const effectWrapCode = handleEffectWrapCode(
+              effectWrapDep.name,
+              code,
+              (code) => this.parse(code),
+              false
+            )
+            if (effectWrapCode) {
+              return effectWrapCode
+            }
+          }
+        } catch (error) {
+          console.log('prodEffectWrapSharedDeps error:', error)
         }
       }
 
@@ -476,6 +508,34 @@ export function prodRemotePlugin(
         }
       }
     }
+
+    /* generateBundle(options, bundle) {
+      const effectWrapArr = parsedOptions.prodShared.filter(
+        (shareInfo) => shareInfo[1].effectWrap
+      )
+      const effectWrapArrReg = effectWrapArr.map(
+        (item) =>
+          new RegExp(`__federation_shared_${item[0]}-[0-9a-zA-Z]{8}.js`, 'g')
+      )
+
+      for (const fileName in bundle) {
+        const idx = effectWrapArrReg.findIndex((item) => item.test(fileName))
+        if (idx >= 0) {
+          const chunk = bundle[fileName]
+          if (chunk.type === 'chunk') {
+            const code = handleEffectWrapCode(
+              effectWrapArr[idx][0],
+              chunk.code,
+              (code) => this.parse(code)
+            )
+
+            if (code) {
+              chunk.code = code
+            }
+          }
+        }
+      }
+    } */
   }
 }
 

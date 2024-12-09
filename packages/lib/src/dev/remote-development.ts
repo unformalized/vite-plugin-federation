@@ -14,7 +14,7 @@
 // *****************************************************************************
 
 import type { UserConfig } from 'vite'
-import type { ConfigTypeSet, VitePluginFederationOptions } from 'types'
+import type { SharedParsedConfig, VitePluginFederationOptions } from 'types'
 import { walk } from 'estree-walker'
 import MagicString from 'magic-string'
 import { readFileSync } from 'fs'
@@ -26,9 +26,15 @@ import {
   getModuleMarker,
   normalizePath,
   parseRemoteOptions,
-  REMOTE_FROM_PARAMETER
+  REMOTE_FROM_PARAMETER,
+  handleEffectWrapCode
 } from '../utils'
-import { builderInfo, parsedOptions, devRemotes } from '../public'
+import {
+  builderInfo,
+  parsedOptions,
+  devRemotes,
+  devEffectWrapSharedDeps
+} from '../public'
 import type { PluginHooks } from '../../types/pluginHooks'
 
 export function devRemotePlugin(
@@ -172,6 +178,10 @@ export {__federation_method_ensure, __federation_method_getRemote , __federation
       viteDevServer = server
     },
     async transform(this: TransformPluginContext, code: string, id: string) {
+      if (id.includes('runtime-dom')) {
+        console.log(id)
+      }
+
       if (builderInfo.isHost && !builderInfo.isRemote) {
         for (const arr of parsedOptions.devShared) {
           if (!arr[1].version && !arr[1].manuallyPackagePathSetting) {
@@ -198,6 +208,25 @@ export {__federation_method_ensure, __federation_method_getRemote , __federation
           parsedOptions.devShared
         )
         return code.replace(getModuleMarker('shareScope'), scopeCode.join(','))
+      }
+
+      try {
+        const effectWrapDep = devEffectWrapSharedDeps.find(
+          (item) => item.id && id.includes(item.id)
+        )
+        if (effectWrapDep) {
+          const effectWrapCode = handleEffectWrapCode(
+            effectWrapDep.name,
+            code,
+            (code) => this.parse(code),
+            true
+          )
+          if (effectWrapCode) {
+            return effectWrapCode
+          }
+        }
+      } catch (error) {
+        console.log('devEffectWrapSharedDeps error:', error)
       }
 
       // ignore some not need to handle file types
@@ -375,7 +404,7 @@ export {__federation_method_ensure, __federation_method_getRemote , __federation
 
   async function devSharedScopeCode(
     this: TransformPluginContext,
-    shared: (string | ConfigTypeSet)[]
+    shared: [string, SharedParsedConfig][]
   ): Promise<string[]> {
     const res: string[] = []
     if (shared.length) {
