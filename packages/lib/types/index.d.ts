@@ -91,6 +91,10 @@ type Remotes = (string | RemotesObject)[] | RemotesObject
 type Shared = (string | SharedObject)[] | SharedObject
 
 type ConfigTypeSet = ExposesConfig | RemotesConfig | SharedConfig
+type ParsedConfigTypeSet =
+  | ExposesParsedConfig
+  | RemotesParsedConfig
+  | SharedParsedConfig
 
 declare interface SharedRuntimeInfo {
   id: string
@@ -317,4 +321,45 @@ declare interface SharedConfig {
    * if true, the shared dep will be append in the html head, only valid in prod mode
    */
   modulePreload?: boolean
+
+  /**
+   * if true, the shared module will be wrapped with a function, and the function will be called when the shared module is imported
+   * , childDeps: the child dependencies of the shared module, handled by same way,
+   * , compatOldShared: add export default object which contains all properties
+   */
+  effectWrap?: boolean | { childDeps: string[]; compatOldShared: boolean }
+}
+
+export interface SharedParsedConfig {
+  import: boolean
+  shareScope: string
+  packagePath: string
+  manuallyPackagePathSetting: boolean
+  generate: boolean
+  effectWrap: boolean | { childDeps?: string[]; compatOldShared?: boolean }
+  // dev extra fields
+  version?: string
+  // prod extra fields
+  emitFile?: string
+  requiredVersion?: boolean
+  id?: string
+  removed?: boolean
+  dependencies?: Set<string>
+}
+
+export interface ExposesParsedConfig {
+  import: string
+  name?: string
+  dontAppendStylesToHead: boolean
+  // prod extra fields
+  emitFile?: string
+  id?: string
+}
+
+export interface RemotesParsedConfig {
+  external: string[]
+  externalType: 'url' | 'promise'
+  shareScope: string
+  format: 'esm' | 'systemjs' | 'var'
+  from: 'vite' | 'webpack'
 }

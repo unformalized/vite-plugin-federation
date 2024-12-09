@@ -14,9 +14,15 @@
 // *****************************************************************************
 
 import type { PluginHooks } from '../../types/pluginHooks'
-import { NAME_CHAR_REG, parseSharedOptions, removeNonRegLetter } from '../utils'
-import { parsedOptions } from '../public'
-import type { ConfigTypeSet, VitePluginFederationOptions } from 'types'
+import {
+  NAME_CHAR_REG,
+  normalizePath,
+  parseSharedOptions,
+  removeNonRegLetter,
+  resolvePkgPath
+} from '../utils'
+import { parsedOptions, prodEffectWrapSharedDeps } from '../public'
+import type { SharedParsedConfig, VitePluginFederationOptions } from 'types'
 import { basename, join, resolve } from 'path'
 import { readdirSync, readFileSync, statSync } from 'fs'
 const sharedFilePathReg = /__federation_shared_(.+)-.{8}\.js$/
@@ -38,6 +44,51 @@ export function prodSharedPlugin(
     name: 'originjs:shared-production',
     virtualFile: {
       __federation_fn_import: federation_fn_import
+    },
+    config(options) {
+      const effectWrapDeps = (parsedOptions.prodShared || [])
+        .filter((item) => item[1].effectWrap)
+        .map((shareInfo) => shareInfo[0])
+
+      if (effectWrapDeps.length) {
+        options.optimizeDeps = options.optimizeDeps || {}
+        options.optimizeDeps.exclude = options.optimizeDeps.exclude || []
+        options.optimizeDeps.exclude.push(...effectWrapDeps)
+      }
+
+      prodEffectWrapSharedDeps.push(
+        ...(parsedOptions.prodShared || []).flatMap((item) => {
+          if (item[1].effectWrap) {
+            const path = resolvePkgPath(item[0])
+            if (typeof item[1].effectWrap === 'boolean') {
+              return [
+                {
+                  name: item[0],
+                  id: path ? normalizePath(path) : path
+                }
+              ]
+            } else {
+              return [
+                {
+                  name: item[0],
+                  id: path ? normalizePath(path) : path
+                },
+                ...(item[1].effectWrap.childDeps || []).map((childItem) => {
+                  const path = resolvePkgPath(childItem, item[0])
+                  return {
+                    name: childItem,
+                    id: path ? normalizePath(path) : path
+                  }
+                })
+              ]
+            }
+          } else {
+            return []
+          }
+        })
+      )
+
+      return options
     },
     options(inputOptions) {
       isRemote = !!parsedOptions.prodExpose.length
@@ -81,7 +132,8 @@ export function prodSharedPlugin(
         })
       }
 
-      const monoRepos: { arr: string[]; root: string | ConfigTypeSet }[] = []
+      const monoRepos: { arr: string[]; root: [string, SharedParsedConfig] }[] =
+        []
       const dirPaths: string[] = []
       const currentDir = resolve()
       //  try to get every module package.json file
