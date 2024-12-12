@@ -1,7 +1,7 @@
 {
   "name": "vite-plugin-federation-advance",
-  "version": "1.3.7",
-  "description": "fork of @originjs/vite-plugin-federation. support shared dependencies which contains dom effect",
+  "version": "1.3.8",
+  "description": "fork of @originjs/vite-plugin-federation. support more features",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./types/index.d.ts",
@@ -30,7 +30,7 @@
     "vite",
     "plugins"
   ],
-  "author": "@originjs",
+  "author": "unformalized",
   "license": "MulanPSL-2.0",
   "bugs": {
     "url": "https://github.com/unformalized/vite-plugin-federation/issues"
