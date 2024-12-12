@@ -15,7 +15,7 @@
 
 import { walk } from 'estree-walker'
 import MagicString from 'magic-string'
-import type { AcornNode, TransformPluginContext } from 'rollup'
+import type { AcornNode, OutputAsset, TransformPluginContext } from 'rollup'
 import type { ConfigTypeSet, VitePluginFederationOptions } from 'types'
 import type { PluginHooks } from '../../types/pluginHooks'
 import {
@@ -31,8 +31,11 @@ import {
   getModuleMarker,
   parseRemoteOptions,
   REMOTE_FROM_PARAMETER,
-  handleEffectWrapCode
+  handleEffectWrapCode,
+  toPreloadTag,
+  injectToHead
 } from '../utils'
+import { ResolvedConfig } from 'vite'
 
 const sharedFileName2Prop: Map<string, ConfigTypeSet> = new Map<
   string,
@@ -53,6 +56,8 @@ export function prodRemotePlugin(
   }
 
   const shareScope = options.shareScope || 'default'
+  let resolvedConfig: ResolvedConfig
+
   return {
     name: 'originjs:remote-production',
     virtualFile: options.remotes
@@ -174,6 +179,10 @@ export function prodRemotePlugin(
         }
       : { __federation__: '' },
 
+    configResolved(config) {
+      resolvedConfig = config
+    },
+
     async transform(this: TransformPluginContext, code: string, id: string) {
       if (builderInfo.isShared) {
         for (const sharedInfo of parsedOptions.prodShared) {
@@ -223,7 +232,6 @@ export function prodRemotePlugin(
             (item) => item.id && id.includes(item.id)
           )
           if (effectWrapDep) {
-            console.log('effectWrapDep id: ', id, effectWrapDep.name)
             const effectWrapCode = handleEffectWrapCode(
               effectWrapDep.name,
               code,
@@ -507,35 +515,49 @@ export function prodRemotePlugin(
           }
         }
       }
-    }
+    },
 
-    /* generateBundle(options, bundle) {
-      const effectWrapArr = parsedOptions.prodShared.filter(
-        (shareInfo) => shareInfo[1].effectWrap
-      )
-      const effectWrapArrReg = effectWrapArr.map(
-        (item) =>
-          new RegExp(`__federation_shared_${item[0]}-[0-9a-zA-Z]{8}.js`, 'g')
-      )
+    generateBundle(options, bundle) {
+      const preloadSharedReg = parsedOptions.prodShared
+        .filter((shareInfo) => shareInfo[1].modulePreload)
+        .map(
+          (item) =>
+            new RegExp(`__federation_shared_${item[0]}-[0-9a-zA-Z]{8}.js`, 'g')
+        )
 
+      const sharedFiles: string[] = []
+      const entryChunk: Record<string, OutputAsset> = {}
       for (const fileName in bundle) {
-        const idx = effectWrapArrReg.findIndex((item) => item.test(fileName))
-        if (idx >= 0) {
-          const chunk = bundle[fileName]
-          if (chunk.type === 'chunk') {
-            const code = handleEffectWrapCode(
-              effectWrapArr[idx][0],
-              chunk.code,
-              (code) => this.parse(code)
-            )
-
-            if (code) {
-              chunk.code = code
-            }
+        const file = bundle[fileName]
+        if (file.type === 'asset') {
+          if (fileName.endsWith('.html')) {
+            entryChunk[fileName] = file
+          }
+        } else {
+          if (preloadSharedReg.some((item) => item.test(fileName))) {
+            sharedFiles.push(fileName)
           }
         }
       }
-    } */
+
+      const basePath = resolvedConfig.base
+
+      console.log(sharedFiles, Object.keys(entryChunk))
+
+      Object.keys(entryChunk).forEach((fileName) => {
+        let html = entryChunk[fileName].source as string
+        html = injectToHead(
+          html,
+          sharedFiles
+            .filter((item) => {
+              return !html.includes(basePath + item)
+            })
+            .map((item) => toPreloadTag(basePath + item))
+        )
+
+        entryChunk[fileName].source = html
+      })
+    }
   }
 }
 

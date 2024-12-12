@@ -31,6 +31,7 @@ import type { PluginContext } from 'rollup'
 
 export * from './effectWrap'
 export * from './resolve'
+export * from './html'
 
 export function findDependencies(
   this: PluginContext,
@@ -70,7 +71,8 @@ export function parseSharedOptions(
       // Whether the path is set manually
       manuallyPackagePathSetting: false,
       generate: true,
-      effectWrap: false
+      effectWrap: false,
+      modulePreload: false
     }),
     (value, key) => {
       value.import = value.import ?? true
@@ -79,6 +81,7 @@ export function parseSharedOptions(
       value.manuallyPackagePathSetting = value.packagePath !== key
       value.generate = value.generate ?? true
       value.effectWrap = value.effectWrap ?? false
+      value.modulePreload = value.modulePreload ?? false
       return value
     }
   )

@@ -323,6 +323,11 @@ declare interface SharedConfig {
    * , compatOldShared: add export default object which contains all properties
    */
   effectWrap?: boolean | { childDeps: string[]; compatOldShared: boolean }
+
+  /**
+   * if true, the shared module will be append in the html head, only valid in prod mode
+   */
+  modulePreload?: boolean
 }
 
 export interface SharedParsedConfig {
@@ -332,6 +337,7 @@ export interface SharedParsedConfig {
   manuallyPackagePathSetting: boolean
   generate: boolean
   effectWrap: boolean | { childDeps?: string[]; compatOldShared?: boolean }
+  modulePreload: boolean
   // dev extra fields
   version?: string
   // prod extra fields

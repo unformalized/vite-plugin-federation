@@ -178,10 +178,6 @@ export {__federation_method_ensure, __federation_method_getRemote , __federation
       viteDevServer = server
     },
     async transform(this: TransformPluginContext, code: string, id: string) {
-      if (id.includes('runtime-dom')) {
-        console.log(id)
-      }
-
       if (builderInfo.isHost && !builderInfo.isRemote) {
         for (const arr of parsedOptions.devShared) {
           if (!arr[1].version && !arr[1].manuallyPackagePathSetting) {

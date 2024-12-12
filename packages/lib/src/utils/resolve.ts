@@ -34,10 +34,8 @@ export const resolvePkgPath = (depName: string, parentDepName?: string) => {
     }
     requirePkg = requirePkg || require.resolve(depName)
     const pkgPath = path.dirname(requirePkg)
-    console.log('pkgPath: ', pkgPath)
     return getPath(pkgPath)
   } catch (error) {
-    console.log('resolvePkgPath: \n', error)
     return undefined
   }
 }
