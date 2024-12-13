@@ -15,7 +15,12 @@
 
 import { walk } from 'estree-walker'
 import MagicString from 'magic-string'
-import type { AcornNode, OutputAsset, TransformPluginContext } from 'rollup'
+import type {
+  AcornNode,
+  OutputAsset,
+  OutputChunk,
+  TransformPluginContext
+} from 'rollup'
 import type { ConfigTypeSet, VitePluginFederationOptions } from 'types'
 import type { PluginHooks } from '../../types/pluginHooks'
 import {
@@ -33,9 +38,11 @@ import {
   REMOTE_FROM_PARAMETER,
   handleEffectWrapCode,
   toPreloadTag,
-  injectToHead
+  injectToHead,
+  toOutputFilePathWithoutRuntime
 } from '../utils'
-import { ResolvedConfig } from 'vite'
+import { type ResolvedConfig } from 'vite'
+import path from 'path'
 
 const sharedFileName2Prop: Map<string, ConfigTypeSet> = new Map<
   string,
@@ -525,6 +532,27 @@ export function prodRemotePlugin(
             new RegExp(`__federation_shared_${item[0]}-[0-9a-zA-Z]{8}.js`, 'g')
         )
 
+      const getImportedChunks = (
+        chunk: OutputChunk,
+        satisfy: (chunk: OutputChunk) => boolean,
+        seen: Set<string> = new Set()
+      ): OutputChunk[] => {
+        const chunks: OutputChunk[] = []
+        chunk.imports.forEach((file) => {
+          const importee = bundle[file]
+          if (importee) {
+            if (importee.type === 'chunk' && !seen.has(file)) {
+              if (satisfy(importee)) {
+                seen.add(file)
+                chunks.push(...getImportedChunks(importee, satisfy, seen))
+                chunks.push(importee)
+              }
+            }
+          }
+        })
+        return chunks
+      }
+
       const sharedFiles: string[] = []
       const entryChunk: Record<string, OutputAsset> = {}
       for (const fileName in bundle) {
@@ -540,19 +568,48 @@ export function prodRemotePlugin(
         }
       }
 
-      const basePath = resolvedConfig.base
-
-      console.log(sharedFiles, Object.keys(entryChunk))
-
       Object.keys(entryChunk).forEach((fileName) => {
         let html = entryChunk[fileName].source as string
+        const htmlPath = entryChunk[fileName].fileName
+        const basePath =
+          resolvedConfig.base === './' || resolvedConfig.base === ''
+            ? path.posix.join(
+                path.posix
+                  .relative(entryChunk[fileName].fileName, '')
+                  .slice(0, -2),
+                './'
+              )
+            : resolvedConfig.base
+
+        const toOutputFilePath = (filename: string) =>
+          toOutputFilePathWithoutRuntime(
+            filename,
+            'asset',
+            htmlPath,
+            'html',
+            resolvedConfig,
+            (filename) => basePath + filename
+          )
+
+        const importFiles = sharedFiles
+          .filter((item) => {
+            return !html.includes(toOutputFilePath(item))
+          })
+          .flatMap((item) => {
+            const filepath = item
+            const importFiles = getImportedChunks(
+              bundle[item] as OutputChunk,
+              (chunk) => !html.includes(toOutputFilePath(chunk.fileName))
+            ).map((item) => item.fileName)
+
+            return [filepath, ...importFiles].map((item) =>
+              toOutputFilePath(item)
+            )
+          })
+
         html = injectToHead(
           html,
-          sharedFiles
-            .filter((item) => {
-              return !html.includes(basePath + item)
-            })
-            .map((item) => toPreloadTag(basePath + item))
+          [...new Set(importFiles)].map((item) => toPreloadTag(item))
         )
 
         entryChunk[fileName].source = html
