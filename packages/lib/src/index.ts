@@ -153,7 +153,7 @@ export default function federation(
       }
       if (args[0] === '__federation_fn_satisfy') {
         const federationId = (
-          await this.resolve('@originjs/vite-plugin-federation')
+          await this.resolve('vite-plugin-federation-advance')
         )?.id
         return await this.resolve(`${dirname(federationId!)}/satisfy.mjs`)
       }
@@ -338,7 +338,7 @@ export function nuxtFederationVitePlugin(
       }
       if (args[0] === '__federation_fn_satisfy') {
         const federationId = (
-          await this.resolve('@originjs/vite-plugin-federation')
+          await this.resolve('vite-plugin-federation-advance')
         )?.id
         return await this.resolve(`${dirname(federationId!)}/satisfy.mjs`)
       }

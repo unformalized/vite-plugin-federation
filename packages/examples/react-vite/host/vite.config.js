@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite'
-import federation from '@originjs/vite-plugin-federation'
+import federation from 'vite-plugin-federation-advance'
 import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/

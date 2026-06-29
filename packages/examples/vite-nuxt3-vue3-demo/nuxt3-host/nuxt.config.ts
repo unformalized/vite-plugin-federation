@@ -1,6 +1,6 @@
 import { defineNuxtConfig } from 'nuxt/config'
 import { addVitePlugin, createResolver } from '@nuxt/kit'
-import {nuxtFederationVitePlugin } from '@originjs/vite-plugin-federation'
+import {nuxtFederationVitePlugin } from 'vite-plugin-federation-advance'
 
 export default defineNuxtConfig({
   modules: [
